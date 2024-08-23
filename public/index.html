@@ -1,0 +1,571 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VibeLength — AI Playlist Builder</title>
+
+    <style>
+      :root { --bg:#0f1115; --card:#151924; --text:#e7e9ee; --muted:#9aa3b2; --accent:#7aa2f7; }
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial;
+        background: linear-gradient(180deg, #0b0e14, #0f1115);
+        color: var(--text);
+      }
+
+      header {
+        padding: 20px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      h1 { font-size: 20px; margin: 0 0 6px; }
+      p  { margin: 6px 0; }
+
+      .muted { color: var(--muted); }
+
+      .btn {
+        display: inline-flex;
+        gap: 8px;
+        align-items: center;
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1px solid #2a3142;
+        background: #1a2030;
+        color: #e7e9ee;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      .btn:hover { border-color: #3a4358; }
+
+      main {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 24px;
+        display: grid;
+        gap: 16px;
+      }
+
+      .row {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: 1.2fr .8fr;
+      }
+
+      .card {
+        background: var(--card);
+        border: 1px solid #23293a;
+        border-radius: 14px;
+        padding: 16px;
+      }
+
+      input[type="text"],
+      input[type="number"] {
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 10px;
+        border: 1px solid #2a3142;
+        background: #0f1320;
+        color: var(--text);
+      }
+
+      ul { list-style: none; padding: 0; margin: 0; }
+
+      li.result {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px;
+        border-radius: 10px;
+        cursor: pointer;
+      }
+      li.result:hover { background: #101625; }
+
+      img.thumb {
+        width: 44px;
+        height: 44px;
+        object-fit: cover;
+        border-radius: 6px;
+      }
+
+      .row-actions { display: flex; gap: 10px; align-items: center; }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border: 1px solid #2a3142;
+        background: #101625;
+        border-radius: 999px;
+        margin: 6px 6px 0 0;
+      }
+      .pill img {
+        width: 24px;
+        height: 24px;
+        border-radius: 4px;
+        object-fit: cover;
+      }
+      .pill button {
+        border: none;
+        background: transparent;
+        color: #c9d1e0;
+        cursor: pointer;
+        font-size: 14px;
+      }
+
+      .error   { color: #ff8c8c; font-size: 14px; margin-top: 8px; }
+      .hint    { font-size: 13px; color: var(--muted); }
+      .empty   { padding: 8px 0; color: var(--muted); }
+      .spacer  { height: 6px; }
+
+      .avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 1px solid #2a3142;
+      }
+      .user-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 10px;
+        border: 1px solid #2a3142;
+        border-radius: 999px;
+        background: #101625;
+      }
+
+      table { width: 100%; border-collapse: collapse; font-size: 14px; }
+      th, td { padding: 10px; border-bottom: 1px solid #23293a; text-align: left; }
+      th { color: var(--muted); font-weight: 600; }
+
+      .right { text-align: right; }
+      .mono  { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; color: #aab2c1; }
+
+      a.link { color: var(--accent); text-decoration: none; }
+      a.link:hover { text-decoration: underline; }
+
+      .save-row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .checkbox {
+        display: inline-flex;
+        gap: 8px;
+        align-items: center;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      /* Loading notice for build */
+      .loading { color: var(--accent); font-size: 13px; margin-top: 8px; }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <div>
+        <h1>VibeLength</h1>
+        <p class="muted">Search Spotify, pick seeds, set a target length, and let AI build a playlist.</p>
+      </div>
+      <div class="row-actions" id="userBox">
+        <a class="btn" href="/login">🔗 Connect Spotify</a>
+      </div>
+    </header>
+
+    <main>
+      <div class="row">
+        <!-- LEFT: Search -->
+        <div class="card">
+          <h1>Search tracks</h1>
+          <p class="hint">Click a result to add it as a seed. Requires Spotify login.</p>
+          <input id="search" type="text" placeholder="Type a song or artist…" autocomplete="off" />
+          <div class="spacer"></div>
+          <ul id="results"></ul>
+          <div id="searchError" class="error" style="display:none"></div>
+        </div>
+
+        <!-- RIGHT: Seeds + Target -->
+        <div class="card">
+          <h1>Seeds & Target</h1>
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+            <div class="muted">Selected seeds (max 5)</div>
+            <button id="clearSeeds" class="btn">🧹 Clear</button>
+          </div>
+          <div id="seeds" class="empty">None yet — add up to 5</div>
+
+          <div class="spacer"></div>
+          <label class="muted">Target minutes</label>
+          <input id="minutes" type="number" value="35" min="5" step="5" />
+
+          <div class="spacer"></div>
+          <button id="build" class="btn">🎧 Build AI playlist</button>
+          <div id="buildError" class="error" style="display:none"></div>
+
+          <!-- NEW: subtle progress note (toggled in JS) -->
+          <div id="buildLoading" class="loading" style="display:none">⏳ Building playlist…</div>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div class="card">
+        <h1>AI Result</h1>
+        <div class="hint" id="resultHint">After building, tracks will appear here.</div>
+        <div id="resultMeta" class="muted" style="display:none"></div>
+        <div class="spacer"></div>
+        <div id="resultArea"></div>
+
+        <!-- Save to Spotify controls (show only after a successful build) -->
+        <div id="saveControls" style="display:none; margin-top:12px;">
+          <div class="save-row">
+            <input id="playlistName" type="text" placeholder="Playlist name (e.g., VibeLength: 35 min mix)" />
+            <label class="checkbox">
+              <input type="checkbox" id="isPublic" />
+              Make public
+            </label>
+            <button id="saveBtn" class="btn">💾 Save to Spotify</button>
+          </div>
+          <div id="saveMsg" class="success" style="display:none"></div>
+          <div id="saveErr" class="error" style="display:none"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h1>Notes</h1>
+        <ul class="muted">
+          <li>Auth is cookie-based (httpOnly). We auto-refresh the access token when needed.</li>
+          <li>AI proposes candidate songs; we look them up on Spotify and pack to your target duration (±2 min).</li>
+          <li>Use “Save to Spotify” to create a playlist in your account with the results.</li>
+        </ul>
+      </div>
+
+      <!-- NEW: disclaimer (purely informational) -->
+      <div class="card muted" style="font-size:13px;">
+        ⚠️ Disclaimer: This app uses OpenAI to suggest tracks. For best results, stick to more mainstream songs/genres.
+      </div>
+    </main>
+
+    <script>
+      // ---------- DOM ----------
+      const $userBox      = document.getElementById('userBox');
+      const $search       = document.getElementById('search');
+      const $results      = document.getElementById('results');
+      const $searchError  = document.getElementById('searchError');
+      const $seeds        = document.getElementById('seeds');
+      const $clearSeeds   = document.getElementById('clearSeeds');
+      const $minutes      = document.getElementById('minutes');
+      const $build        = document.getElementById('build');
+      const $buildError   = document.getElementById('buildError');
+      const $resultArea   = document.getElementById('resultArea');
+      const $resultMeta   = document.getElementById('resultMeta');
+      const $resultHint   = document.getElementById('resultHint');
+
+      const $saveControls = document.getElementById('saveControls');
+      const $playlistName = document.getElementById('playlistName');
+      const $isPublic     = document.getElementById('isPublic');
+      const $saveBtn      = document.getElementById('saveBtn');
+      const $saveMsg      = document.getElementById('saveMsg');
+      const $saveErr      = document.getElementById('saveErr');
+
+      // NEW: loading flag for build
+      const $buildLoading = document.getElementById('buildLoading');
+
+      let lastAiTracks = []; // store latest AI track list (ids)
+
+      // ---------- Utilities ----------
+      function escapeHtml(s){
+        return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      }
+      function msToMin(ms){ return Math.round(ms/60000); }
+      const fmt = {
+        dur(ms){
+          const m = Math.floor(ms/60000);
+          const s = Math.round((ms%60000)/1000);
+          return `${m}:${String(s).padStart(2,'0')}`;
+        }
+      };
+
+      // ---------- Header login chip ----------
+      async function refreshHeaderUser() {
+        try {
+          const r = await fetch('/whoami', { credentials: 'include' });
+          const j = await r.json();
+          if (j.ok) {
+            const img = j.image ? `<img class="avatar" src="${j.image}" alt="pfp">` : '';
+            $userBox.innerHTML = `
+              <div class="user-chip">
+                ${img}
+                <span>${escapeHtml(j.display_name)}</span>
+                <button id="logoutBtn" class="btn" style="margin-left:8px">🚪 Log out</button>
+              </div>
+            `;
+            document.getElementById('logoutBtn').onclick = async () => {
+              await fetch('/logout', { method:'POST', credentials:'include' });
+              location.reload();
+            };
+          } else {
+            $userBox.innerHTML = `<a class="btn" href="/login">🔗 Connect Spotify</a>`;
+          }
+        } catch {
+          $userBox.innerHTML = `<a class="btn" href="/login">🔗 Connect Spotify</a>`;
+        }
+      }
+
+      // ---------- Seeds ----------
+      async function loadSeeds() {
+        const r = await fetch('/seeds', { credentials:'include' });
+        const j = await r.json();
+        renderSeeds(j.seeds || []);
+      }
+
+      function renderSeeds(seeds) {
+        if (!seeds.length) {
+          $seeds.innerHTML = '<span class="empty">None yet — add up to 5</span>';
+          return;
+        }
+        $seeds.innerHTML = seeds.map(s => `
+          <span class="pill" data-id="${s.id}">
+            ${s.image ? `<img src="${s.image}" alt="">` : ''}
+            ${escapeHtml(s.name)} — <span class="muted">${escapeHtml(s.artists)}</span>
+            <button title="Remove">✕</button>
+          </span>
+        `).join('');
+      }
+
+      $seeds.addEventListener('click', async (e) => {
+        if (e.target.tagName !== 'BUTTON') return;
+        const pill = e.target.closest('.pill');
+        const id = pill?.dataset.id;
+        if (!id) return;
+        const r = await fetch(`/seeds/${encodeURIComponent(id)}`, { method:'DELETE', credentials:'include' });
+        const j = await r.json();
+        if (!r.ok) { alert(j.error || 'Failed to remove'); return; }
+        renderSeeds(j.seeds || []);
+      });
+
+      $clearSeeds.onclick = async () => {
+        const r = await fetch('/seeds/clear', { method:'POST', credentials:'include' });
+        const j = await r.json();
+        renderSeeds(j.seeds || []);
+      };
+
+      // ---------- Search ----------
+      let t;
+      $search.addEventListener('input', () => {
+        clearTimeout(t);
+        const q = $search.value.trim();
+        if (q.length < 2) { $results.innerHTML = ''; $searchError.style.display='none'; return; }
+        t = setTimeout(() => doSearch(q), 250);
+      });
+
+      async function doSearch(q) {
+        $searchError.style.display = 'none';
+        try {
+          const resp = await fetch(`/search-tracks?q=${encodeURIComponent(q)}`, { credentials: 'include' });
+          const json = await resp.json();
+          if (!resp.ok) {
+            let msg = json?.error || 'Search failed';
+            if (resp.status === 401) msg = 'Not authenticated. Click “Connect Spotify” and sign in.';
+            showSearchError(msg);
+            $results.innerHTML = '';
+            return;
+          }
+          renderResults(json.tracks || []);
+        } catch {
+          showSearchError('Network error while searching.');
+        }
+      }
+
+      function showSearchError(msg){
+        $searchError.textContent = msg;
+        $searchError.style.display = 'block';
+      }
+
+      function renderResults(tracks) {
+        if (!tracks.length) {
+          $results.innerHTML = '<li class="muted">No matches.</li>';
+          return;
+        }
+        $results.innerHTML = tracks.map(t => `
+          <li class="result"
+              data-id="${t.id}"
+              data-name="${escapeHtml(t.name)}"
+              data-artists="${escapeHtml(t.artists)}"
+              data-image="${t.image||''}"
+              data-url="${t.url||''}"
+              data-duration="${t.duration_ms||0}"
+              data-popularity="${t.popularity||0}">
+            ${t.image ? `<img class="thumb" src="${t.image}" alt="">` : `<div class="thumb" style="background:#0f1320"></div>`}
+            <div>
+              <div>${escapeHtml(t.name)}</div>
+              <div class="muted">${escapeHtml(t.artists)} · <span class="mono">${t.id}</span></div>
+            </div>
+          </li>
+        `).join('');
+      }
+
+      $results.addEventListener('click', async (e) => {
+        const li = e.target.closest('li.result');
+        if (!li) return;
+        const track = {
+          id: li.dataset.id,
+          name: li.dataset.name,
+          artists: li.dataset.artists,
+          image: li.dataset.image || null,
+          url: li.dataset.url || null,
+          duration_ms: Number(li.dataset.duration||0),
+          popularity: Number(li.dataset.popularity||0)
+        };
+        const r = await fetch('/seeds', {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ track })
+        });
+        const j = await r.json();
+        if (!r.ok) { alert(j.error || 'Could not add seed'); return; }
+        renderSeeds(j.seeds);
+      });
+
+      // ---------- AI Build ----------
+      $build.onclick = async () => {
+        $buildError.style.display = 'none';
+        $resultArea.innerHTML = '';
+        $resultMeta.style.display = 'none';
+        $resultHint.style.display = 'block';
+        $saveControls.style.display = 'none';
+        $saveMsg.style.display = 'none';
+        $saveErr.style.display = 'none';
+
+        // show loading note (NEW)
+        if ($buildLoading) $buildLoading.style.display = 'block';
+
+        const minutes = Number($minutes.value||30);
+
+        let resp;
+        try {
+          resp = await fetch('/ai-build', {
+            method:'POST',
+            credentials:'include',
+            headers:{ 'Content-Type':'application/json' },
+            body: JSON.stringify({ minutes }) // no vibe anymore
+          });
+        } catch {
+          if ($buildLoading) $buildLoading.style.display = 'none';
+          showBuildError('Network error while calling AI build.');
+          return;
+        }
+
+        let json;
+        try { json = await resp.json(); } catch { json = null; }
+
+        // hide loading regardless of outcome (NEW)
+        if ($buildLoading) $buildLoading.style.display = 'none';
+
+        if (!resp.ok) {
+          showBuildError(json?.error || 'AI build failed.');
+          return;
+        }
+
+        $resultHint.style.display = 'none';
+        renderAiResult(json);
+
+        // store IDs for saving later
+        lastAiTracks = (json.tracks || []).map(t => t.id);
+        // prefill a simple default name
+        $playlistName.value = `VibeLength: ${json.target_minutes} min`;
+        $saveControls.style.display = lastAiTracks.length ? 'block' : 'none';
+      };
+
+      function showBuildError(msg){
+        $buildError.textContent = msg;
+        $buildError.style.display = 'block';
+      }
+
+      function renderAiResult(j){
+        const totalMin = msToMin(j.total_ms||0);
+        $resultMeta.style.display = 'block';
+        $resultMeta.innerHTML = `Target: <b>${j.target_minutes}</b> min · Achieved: <b>${totalMin}</b> min`;
+
+        const rows = (j.tracks||[]).map((t,i)=> `
+          <tr>
+            <td class="right">${i+1}</td>
+            <td>${t.image ? `<img class="thumb" src="${t.image}" alt="" style="width:34px;height:34px">` : ''}</td>
+            <td><a class="link" href="${t.url||'#'}" target="_blank" rel="noopener">${escapeHtml(t.name)}</a></td>
+            <td class="muted">${escapeHtml(t.artists)}</td>
+            <td class="right mono">${fmt.dur(t.duration_ms||0)}</td>
+          </tr>
+        `).join('');
+
+        $resultArea.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th class="right">#</th>
+                <th></th>
+                <th>Track</th>
+                <th>Artists</th>
+                <th class="right">Time</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        `;
+      }
+
+      // ---------- Save to Spotify ----------
+      $saveBtn.onclick = async () => {
+        $saveMsg.style.display = 'none';
+        $saveErr.style.display = 'none';
+
+        if (!lastAiTracks.length) {
+          $saveErr.textContent = 'No tracks to save. Build a playlist first.';
+          $saveErr.style.display = 'block';
+          return;
+        }
+
+        const name = $playlistName.value.trim() || 'VibeLength Playlist';
+        const is_public = !!$isPublic.checked;
+
+        let resp;
+        try {
+          resp = await fetch('/save-playlist', {
+            method:'POST',
+            credentials:'include',
+            headers:{ 'Content-Type':'application/json' },
+            body: JSON.stringify({ name, tracks: lastAiTracks, is_public })
+          });
+        } catch {
+          $saveErr.textContent = 'Network error while saving playlist.';
+          $saveErr.style.display = 'block';
+          return;
+        }
+
+        const json = await resp.json().catch(()=>null);
+        if (!resp.ok) {
+          $saveErr.textContent = json?.error || 'Failed to save playlist.';
+          $saveErr.style.display = 'block';
+          return;
+        }
+
+        const link = json?.url
+          ? `<a class="link" href="${json.url}" target="_blank" rel="noopener">${escapeHtml(json.name||name)}</a>`
+          : escapeHtml(json?.name||name);
+
+        $saveMsg.innerHTML = `✅ Saved: ${link}`;
+        $saveMsg.style.display = 'block';
+      };
+
+      // ---------- On load ----------
+      refreshHeaderUser();
+      loadSeeds();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+
+# Certificates and keys
+*.pem
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.log*
