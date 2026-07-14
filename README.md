@@ -41,6 +41,7 @@ Spotify now restricts public apps for individual developers. To try VibeLength:
 1. Email **ianregister1@gmail.com** with the **email linked to your Spotify account**.
 2. I’ll add you to the **allowed users** list.
 3. Once approved, visit **https://vibelength.onrender.com/** and log in.
+4. Alternatively, VibeLengthDemo.mp4 also shows the end to end flow
 
 ---
 
